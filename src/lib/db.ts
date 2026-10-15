@@ -68,7 +68,7 @@ async function locked<T>(fn: () => T | Promise<T>): Promise<T> {
     release();
   }
 }
-export async function querySql<T = Record<string, any>>(
+export async function querySql<T = Record<string, unknown>>(
   sql: string,
   params: Parameters = [],
 ): Promise<T[]> {
@@ -97,7 +97,7 @@ export async function execSql(
     );
   return tx?.sqlite ? run() : locked(run);
 }
-export async function oneSql<T = Record<string, any>>(
+export async function oneSql<T = Record<string, unknown>>(
   sql: string,
   params: Parameters = [],
 ): Promise<T | null> {
@@ -131,4 +131,14 @@ export async function transaction<T>(fn: () => Promise<T>): Promise<T> {
       throw e;
     }
   });
+}
+
+/** Close resources after one-shot maintenance or isolated regression tests. */
+export async function closeDb() {
+  await state.tail;
+  if (state.pool) await state.pool.end();
+  state.sqlite?.close();
+  state.pool = undefined;
+  state.sqlite = undefined;
+  state.init = undefined;
 }

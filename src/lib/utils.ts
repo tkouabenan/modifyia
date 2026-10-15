@@ -15,7 +15,7 @@ export const dateLabel = (date: string) =>
     day: "numeric",
     year: "numeric",
   });
-export async function api<T = Record<string, any>>(
+export async function api<T = unknown>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
@@ -29,12 +29,25 @@ export async function api<T = Record<string, any>>(
     },
     credentials: "same-origin",
   });
-  const data = await response.json();
-  if (!response.ok)
-    throw new Error(data.error || "Something went wrong. Please try again.");
-  return data;
+  let data: unknown;
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error(
+      "The server returned an unreadable response. Please try again.",
+    );
+  }
+  if (!response.ok) {
+    const message =
+      data &&
+      typeof data === "object" &&
+      "error" in data &&
+      typeof data.error === "string"
+        ? data.error
+        : "Something went wrong. Please try again.";
+    throw new Error(message);
+  }
+  return data as T;
 }
-export const post = <T = Record<string, any>>(
-  path: string,
-  body: unknown = {},
-) => api<T>(path, { method: "POST", body: JSON.stringify(body) });
+export const post = <T = unknown>(path: string, body: unknown = {}) =>
+  api<T>(path, { method: "POST", body: JSON.stringify(body) });

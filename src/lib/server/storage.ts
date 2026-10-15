@@ -14,7 +14,9 @@ import type { Asset } from "../types";
 import { now } from "./config";
 import { assert, id } from "./security";
 export const mediaRoot = () =>
-  path.resolve(process.env.MEDIA_ROOT || "./data/media");
+  path.resolve(
+    /* turbopackIgnore: true */ process.env.MEDIA_ROOT || "./data/media",
+  );
 const s3 = () =>
   new S3Client({
     region: process.env.S3_REGION || "us-east-1",
@@ -74,8 +76,14 @@ export async function saveAsset(
       }),
     );
   else {
-    await fs.mkdir(path.join(mediaRoot(), userId), { recursive: true });
-    await fs.writeFile(path.join(mediaRoot(), key), data, { mode: 0o600 });
+    await fs.mkdir(path.join(/* turbopackIgnore: true */ mediaRoot(), userId), {
+      recursive: true,
+    });
+    await fs.writeFile(
+      path.join(/* turbopackIgnore: true */ mediaRoot(), key),
+      data,
+      { mode: 0o600 },
+    );
   }
   const row: AssetRow = {
     id: assetId,
@@ -135,14 +143,22 @@ export async function assetBuffer(asset: AssetRow) {
     );
     return Buffer.from(await res.Body!.transformToByteArray());
   }
-  return fs.readFile(path.join(mediaRoot(), asset.storage_key));
+  return fs.readFile(
+    /* turbopackIgnore: true */ path.join(
+      /* turbopackIgnore: true */ mediaRoot(),
+      asset.storage_key,
+    ),
+  );
 }
 async function deleteObject(key: string) {
   if (process.env.S3_BUCKET)
     await s3().send(
       new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key }),
     );
-  else await fs.rm(path.join(mediaRoot(), key), { force: true });
+  else
+    await fs.rm(path.join(/* turbopackIgnore: true */ mediaRoot(), key), {
+      force: true,
+    });
 }
 export async function removeAsset(row: AssetRow) {
   await deleteObject(row.storage_key);
@@ -175,8 +191,11 @@ export async function serveAsset(req: Request, asset: AssetRow) {
       headers: { Location: signed, "Cache-Control": "private, no-store" },
     });
   }
-  const file = path.join(mediaRoot(), asset.storage_key);
-  const stat = await fs.stat(file);
+  const file = path.join(
+    /* turbopackIgnore: true */ mediaRoot(),
+    asset.storage_key,
+  );
+  const stat = await fs.stat(/* turbopackIgnore: true */ file);
   const headers: Record<string, string> = {
     "Content-Type": asset.mime,
     "Content-Disposition": disposition,
@@ -209,7 +228,9 @@ export async function serveAsset(req: Request, asset: AssetRow) {
   }
   headers["Content-Length"] = String(end - start + 1);
   return new Response(
-    Readable.toWeb(createReadStream(file, { start, end })) as ReadableStream,
+    Readable.toWeb(
+      createReadStream(/* turbopackIgnore: true */ file, { start, end }),
+    ) as ReadableStream,
     { status, headers },
   );
 }

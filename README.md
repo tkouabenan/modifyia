@@ -2,7 +2,7 @@
 
 An AI character and motion-transfer studio built with Next.js, React, TypeScript, PostgreSQL/SQLite, private media storage, and FFmpeg.
 
-> **Work in progress — not production-ready.** This branch contains the initial studio interface and backend implementation. Visual styling, secondary pages, automated tests, and security/operational validation are unfinished. Navigation currently references pages that have not been implemented. External integrations have not been verified using live credentials.
+> **Work in progress — not production-ready.** This branch contains the initial studio interface and backend implementation. Visual styling, secondary pages, broader automated coverage, and security/operational validation are unfinished. A targeted regression suite now covers draft validation, credit reservations/refunds, and worker queue behavior. Navigation currently references pages that have not been implemented. External integrations have not been verified using live credentials.
 
 ## Implemented foundations
 
@@ -56,7 +56,7 @@ Provider reference: <https://docs.higgsfield.ai/docs/models/genjutsu/motion-tran
 
 Configure SMTP and `MAIL_FROM` to deliver verification/reset links. Development API responses can include a development link; production responses do not. Email verification is required for generation by default.
 
-Google OAuth needs `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET`, and a registered callback URL of:
+Google OAuth needs `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, a `SESSION_SECRET` of at least 32 characters (including in development), and a registered callback URL of:
 
 ```text
 https://your-app.example/api/auth/google/callback
@@ -89,17 +89,19 @@ After registering the intended account, set `ADMIN_EMAIL` and run `npm run db:se
 ## Validation status
 
 - `npm run typecheck` — passes.
-- `npm run build` — passes, with dynamic filesystem tracing and experimental SQLite warnings.
-- `npm run lint` — currently fails; explicit `any` annotations, React effect rules, and other warnings need cleanup.
-- Unit and browser test tools are installed, but test suites have not yet been written.
+- `npm run build` — passes. Runtime media paths no longer trigger whole-project filesystem tracing. Node still reports its experimental SQLite warning.
+- `npm run lint` — passes with no errors or warnings.
+- `npm test` — 16 local regression tests pass, covering malformed drafts, duplicate reservations, exactly-once refunds, stale worker fencing, cancellation between provider polls, transient failures, and processing deadlines. External provider behavior is mocked only in tests.
+- Browser tests and live PostgreSQL concurrency validation remain outstanding.
+- `npm audit --omit=dev` reports no production dependency vulnerabilities. The full audit still reports inherited development-only advisories in the ESLint dependency chain.
 - Live Higgsfield, Stripe, Google, SMTP, PostgreSQL, and S3 workflows have not been verified in this environment.
 
 ## Before release
 
 - Complete styling, responsive/accessibility review, and all secondary routes (landing, authentication, overview, projects/history, characters, queue, billing, settings, help/legal, administration).
-- Add critical workflow tests, including ownership isolation, upload decoding, queue recovery, cancellation races, credit/refund idempotency, webhook ordering, and completed-video downloads.
+- Extend regression coverage with browser tests, real upload decoding, PostgreSQL concurrency, webhook ordering, token/OAuth lifecycles, and completed-video downloads.
 - Audit worker leases, timeouts/retries, subscription lifecycle accounting, deletion/cleanup, quota enforcement, and upload resource limits.
 - Add reviewed migrations and deployment-specific database/storage access policies.
 - Add available malware scanning, operational monitoring, backups, cleanup jobs, and rate-limit/reverse-proxy configuration.
-- Resolve lint and build tracing warnings; validate licensing and update bundled FFmpeg binaries as appropriate.
+- Review the inherited development dependency advisories; validate licensing and update bundled FFmpeg binaries as appropriate.
 - Deploy FFmpeg processing to a suitable persistent/container worker, not a short-lived frontend function. Configure outbound network access and run a real end-to-end generation before launch.

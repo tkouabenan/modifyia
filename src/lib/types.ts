@@ -15,6 +15,7 @@ export interface User {
   verified: boolean;
   plan: string;
   locale: "en" | "fr";
+  notifications: boolean;
   created_at: string;
 }
 export interface Asset {
@@ -31,6 +32,14 @@ export interface Asset {
     fps?: number;
     format?: string;
     audio?: boolean;
+    codec?: string;
+    audioCodec?: string;
+    thumbnail_id?: string;
+    originalFormat?: string;
+    originalSize?: number;
+    enhanced?: boolean;
+    ai_generated?: boolean;
+    provenance?: string;
   };
   created_at: string;
 }

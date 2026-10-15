@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import fs from "node:fs/promises";
@@ -73,44 +74,79 @@ export async function tempMedia<T>(fn: (dir: string) => Promise<T>) {
     await fs.rm(dir, { recursive: true, force: true });
   }
 }
+const probeSchema = z.object({
+  streams: z.array(
+    z.object({
+      codec_type: z.string(),
+      codec_name: z.string().optional(),
+      width: z.number().optional(),
+      height: z.number().optional(),
+      duration: z.string().optional(),
+      avg_frame_rate: z.string().optional(),
+      r_frame_rate: z.string().optional(),
+    }),
+  ),
+  format: z
+    .object({
+      duration: z.string().optional(),
+      format_name: z.string().optional(),
+    })
+    .optional(),
+});
 export async function probe(file: string) {
-  const output = JSON.parse(
-    await command(
-      binaries().ffprobe,
-      [
-        "-v",
-        "error",
-        "-protocol_whitelist",
-        "file,pipe",
-        "-show_streams",
-        "-show_format",
-        "-of",
-        "json",
-        file,
-      ],
-      30_000,
-    ),
-  );
-  const v = output.streams?.find((s: any) => s.codec_type === "video");
+  let output: z.infer<typeof probeSchema>;
+  try {
+    output = probeSchema.parse(
+      JSON.parse(
+        await command(
+          binaries().ffprobe,
+          [
+            "-v",
+            "error",
+            "-protocol_whitelist",
+            "file,pipe",
+            "-show_streams",
+            "-show_format",
+            "-of",
+            "json",
+            file,
+          ],
+          30_000,
+        ),
+      ),
+    );
+  } catch (e) {
+    if (e instanceof AppError) throw e;
+    throw new AppError(
+      422,
+      "Video metadata could not be read. Re-export this file as H.264 MP4.",
+    );
+  }
+  const video = output.streams.find((s) => s.codec_type === "video"),
+    audio = output.streams.find((s) => s.codec_type === "audio");
   assert(
-    v && Number(v.width) > 0 && Number(v.height) > 0,
+    video?.width && video.height,
     "No decodable video stream was found.",
     422,
   );
-  const duration = Number(output.format?.duration || v.duration);
-  const [n, d] = String(v.avg_frame_rate || v.r_frame_rate || "0/1")
+  const duration = Number(output.format?.duration || video.duration);
+  assert(
+    Number.isFinite(duration) && duration > 0,
+    "The video has no valid duration.",
+    422,
+  );
+  const [n, d] = String(video.avg_frame_rate || video.r_frame_rate || "0/1")
     .split("/")
     .map(Number);
   return {
-    width: Number(v.width),
-    height: Number(v.height),
+    width: video.width,
+    height: video.height,
     duration,
-    fps: d ? n / d : n,
-    audio: output.streams.some((s: any) => s.codec_type === "audio"),
+    fps: d ? n / d : 0,
+    audio: !!audio,
     format: output.format?.format_name,
-    codec: v.codec_name,
-    audioCodec: output.streams.find((s: any) => s.codec_type === "audio")
-      ?.codec_name,
+    codec: video.codec_name,
+    audioCodec: audio?.codec_name,
   };
 }
 export function outputDimensions(
@@ -399,7 +435,8 @@ export async function exportVideo(
     await fs.writeFile(video, generated);
     await fs.writeFile(original, await assetBuffer(source));
     const meta = await probe(video);
-    const src = JSON.parse(source.metadata);
+    const src = JSON.parse(source.metadata) as Asset["metadata"];
+    assert(src.width && src.height, "The source dimensions are missing.", 422);
     const duration = input.trim_end - input.trim_start;
     assert(
       Math.abs(meta.duration - duration) <= Math.max(1, duration * 0.1),

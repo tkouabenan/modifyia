@@ -1,8 +1,9 @@
+import type { ProfileRow, SubscriptionRow, TokenRow, UserRow } from "./records";
 import bcrypt from "bcryptjs";
 import nodemailer from "nodemailer";
 import { SignJWT, jwtVerify, createRemoteJWKSet } from "jose";
 import { createHash } from "node:crypto";
-import { execSql, oneSql, transaction } from "../db";
+import { execSql, oneSql, querySql, transaction } from "../db";
 import type { User } from "../types";
 import { now, pricing } from "./config";
 import {
@@ -16,18 +17,7 @@ import {
   token,
 } from "./security";
 
-type Account = {
-  id: string;
-  email: string | null;
-  name: string;
-  role: User["role"];
-  credits: number;
-  email_verified: number;
-  suspended: number;
-  password_hash: string | null;
-  stripe_customer_id: string | null;
-  created_at: string;
-};
+export type Account = UserRow;
 export async function account(req: Request): Promise<Account | null> {
   const session = cookies(req).modify_session;
   if (!session) return null;
@@ -54,12 +44,12 @@ export async function requireAccount(req: Request, registered = false) {
   return user;
 }
 export async function publicUser(userId: string): Promise<User> {
-  const row = await oneSql(
-    "SELECT u.*, p.locale FROM users u LEFT JOIN profiles p ON p.user_id=u.id WHERE u.id=?",
+  const row = await oneSql<UserRow & ProfileRow>(
+    "SELECT u.*, p.locale, p.notifications FROM users u LEFT JOIN profiles p ON p.user_id=u.id WHERE u.id=?",
     [userId],
   );
   assert(row, "Account not found.", 404);
-  const subscription = await oneSql(
+  const subscription = await oneSql<SubscriptionRow>(
     "SELECT plan FROM subscriptions WHERE user_id=? AND status IN ('active','trialing') ORDER BY created_at DESC LIMIT 1",
     [userId],
   );
@@ -70,6 +60,7 @@ export async function publicUser(userId: string): Promise<User> {
     role: row.role,
     credits: row.credits,
     verified: !!row.email_verified,
+    notifications: !!row.notifications,
     locale: row.locale || "en",
     plan: subscription?.plan || "free",
     created_at: row.created_at,
@@ -154,7 +145,9 @@ async function authLink(
     ],
   );
   const link = `${requestOrigin(req)}/${kind === "verify" ? "verify-email" : "reset-password"}?token=${raw}`;
-  const user = await oneSql("SELECT email FROM users WHERE id=?", [userId]);
+  const user = await oneSql<UserRow>("SELECT email FROM users WHERE id=?", [
+    userId,
+  ]);
   if (process.env.SMTP_HOST && process.env.MAIL_FROM) {
     const smtp = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
@@ -171,7 +164,7 @@ async function authLink(
     });
     await smtp.sendMail({
       from: process.env.MAIL_FROM,
-      to: user!.email,
+      to: user!.email || undefined,
       subject:
         kind === "verify"
           ? "Verify your MODIFY AI email"
@@ -191,7 +184,7 @@ export async function register(req: Request, body: Record<string, unknown>) {
   );
   assert(body.consent === true, "Accept the terms and responsible-use policy.");
   assert(
-    !(await oneSql("SELECT id FROM users WHERE email=?", [email])),
+    !(await oneSql<UserRow>("SELECT id FROM users WHERE email=?", [email])),
     "An account already exists for this email.",
     409,
   );
@@ -209,12 +202,17 @@ export async function register(req: Request, body: Record<string, unknown>) {
   const passHash = await bcrypt.hash(password, 12);
   const { trialCredits } = await pricing();
   await transaction(async () => {
-    if (guest?.role === "guest")
-      await execSql(
+    if (guest?.role === "guest") {
+      const promoted = await execSql(
         "UPDATE users SET email=?, password_hash=?, name=?, role='user', updated_at=? WHERE id=? AND role='guest'",
         [email, passHash, name, now(), uid],
       );
-    else {
+      assert(
+        promoted,
+        "This workspace has already been registered. Sign in to continue.",
+        409,
+      );
+    } else {
       await execSql(
         "INSERT INTO users(id,email,password_hash,name,role,credits,created_at,updated_at) VALUES(?,?,?,?,'user',?,?,?)",
         [uid, email, passHash, name, trialCredits, now(), now()],
@@ -319,8 +317,8 @@ export async function consumeAuthToken(
       : null;
   let uid = "";
   await transaction(async () => {
-    const row = await oneSql(
-      "SELECT * FROM auth_tokens WHERE token_hash=? AND kind=? AND expires_at > ?",
+    const [row] = await querySql<TokenRow>(
+      "DELETE FROM auth_tokens WHERE token_hash=? AND kind=? AND expires_at > ? RETURNING *",
       [hash(raw), kind, now()],
     );
     assert(
@@ -363,8 +361,11 @@ export async function resendVerification(req: Request) {
 }
 
 const oauthKey = () => {
-  if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET)
-    throw new AppError(503, "OAuth requires SESSION_SECRET.");
+  if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32)
+    throw new AppError(
+      503,
+      "OAuth requires a SESSION_SECRET of at least 32 characters.",
+    );
   return new TextEncoder().encode(
     process.env.SESSION_SECRET ||
       "development-only-oauth-signing-key-change-me",

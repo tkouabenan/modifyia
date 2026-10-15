@@ -1,24 +1,35 @@
-import { execSql, oneSql, querySql, transaction } from "../db";
+import type {
+  CharacterRow,
+  CountRow,
+  CreditRow,
+  GeneratedRow,
+  JobRow,
+  NotificationRow,
+  PaymentRow,
+  ProjectRow,
+  SubscriptionRow,
+} from "./records";
+import { execSql, oneSql, querySql, transaction, isPostgres } from "../db";
 import { z } from "zod";
 import { publicUser } from "./auth";
 import { configuration, now, plans } from "./config";
 import { assert, id } from "./security";
 import { assetFor, assetPublic, type AssetRow } from "./storage";
-import type { Project, Workspace } from "../types";
+import type { Job, Project, Workspace } from "../types";
 export async function listProjects(userId: string): Promise<Project[]> {
-  const projects = await querySql(
+  const projects = await querySql<ProjectRow>(
     "SELECT * FROM projects WHERE user_id=? ORDER BY updated_at DESC LIMIT 200",
     [userId],
   );
   return Promise.all(
     projects.map(async (p) => {
-      const job = await oneSql(
+      const job = await oneSql<JobRow>(
         "SELECT * FROM generation_jobs WHERE project_id=? ORDER BY created_at DESC LIMIT 1",
         [p.id],
       );
       const output =
         job?.status === "completed"
-          ? await oneSql(
+          ? await oneSql<GeneratedRow>(
               "SELECT asset_id FROM generated_videos WHERE job_id=?",
               [job.id],
             )
@@ -65,11 +76,11 @@ export async function workspace(userId: string): Promise<Workspace> {
   ] = await Promise.all([
     publicUser(userId),
     listProjects(userId),
-    querySql(
+    querySql<CharacterRow>(
       "SELECT * FROM character_assets WHERE user_id=? ORDER BY favorite DESC,created_at DESC LIMIT 200",
       [userId],
     ),
-    querySql(
+    querySql<Job>(
       "SELECT j.id,j.project_id,p.name,j.status,j.stage,j.cost,j.error,j.created_at,j.updated_at,j.provider_request_id FROM generation_jobs j JOIN projects p ON p.id=j.project_id WHERE j.user_id=? ORDER BY j.created_at DESC LIMIT 200",
       [userId],
     ),
@@ -79,28 +90,28 @@ export async function workspace(userId: string): Promise<Workspace> {
     ),
     plans(),
     configuration(),
-    querySql(
+    querySql<CreditRow>(
       "SELECT id,amount,reason,created_at FROM credit_transactions WHERE user_id=? ORDER BY created_at DESC LIMIT 100",
       [userId],
     ),
-    querySql(
+    querySql<NotificationRow>(
       "SELECT * FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 30",
       [userId],
     ),
-    oneSql(
+    oneSql<SubscriptionRow>(
       "SELECT plan,status,current_period_end FROM subscriptions WHERE user_id=? ORDER BY created_at DESC LIMIT 1",
       [userId],
     ),
-    querySql(
+    querySql<PaymentRow>(
       "SELECT id,amount,currency,status,invoice_url,created_at FROM payment_transactions WHERE user_id=? ORDER BY created_at DESC LIMIT 100",
       [userId],
     ),
   ]);
-  const storage = await oneSql(
+  const storage = await oneSql<CountRow>(
     "SELECT COALESCE(SUM(size),0) AS total FROM video_uploads WHERE user_id=?",
     [userId],
   );
-  const completed = await oneSql(
+  const completed = await oneSql<CountRow>(
     "SELECT COUNT(*) AS total FROM generated_videos WHERE user_id=?",
     [userId],
   );
@@ -178,12 +189,12 @@ export async function saveProject(
   const pid = projectId || id();
   await transaction(async () => {
     if (projectId) {
-      const existing = await oneSql(
-        "SELECT id FROM projects WHERE id=? AND user_id=?",
+      const existing = await oneSql<ProjectRow>(
+        `SELECT id FROM projects WHERE id=? AND user_id=?${isPostgres() ? " FOR UPDATE" : ""}`,
         [pid, userId],
       );
       assert(existing, "Project not found.", 404);
-      const active = await oneSql(
+      const active = await oneSql<JobRow>(
         "SELECT id FROM generation_jobs WHERE project_id=? AND status IN ('queued','uploading','processing')",
         [pid],
       );
@@ -231,12 +242,12 @@ export async function saveProject(
 }
 export async function deleteProject(userId: string, projectId: string) {
   await transaction(async () => {
-    const project = await oneSql(
-      "SELECT id FROM projects WHERE id=? AND user_id=?",
+    const project = await oneSql<ProjectRow>(
+      `SELECT id FROM projects WHERE id=? AND user_id=?${isPostgres() ? " FOR UPDATE" : ""}`,
       [projectId, userId],
     );
     assert(project, "Project not found.", 404);
-    const active = await oneSql(
+    const active = await oneSql<JobRow>(
       "SELECT id FROM generation_jobs WHERE project_id=? AND status IN ('queued','uploading','processing')",
       [projectId],
     );
@@ -256,10 +267,10 @@ export async function deleteProject(userId: string, projectId: string) {
   };
 }
 export async function duplicateProject(userId: string, projectId: string) {
-  const row = await oneSql("SELECT * FROM projects WHERE id=? AND user_id=?", [
-    projectId,
-    userId,
-  ]);
+  const row = await oneSql<ProjectRow>(
+    `SELECT * FROM projects WHERE id=? AND user_id=?${isPostgres() ? " FOR UPDATE" : ""}`,
+    [projectId, userId],
+  );
   assert(row, "Project not found.", 404);
   return saveProject(userId, {
     ...row,

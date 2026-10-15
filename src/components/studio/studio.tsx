@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { MediaImage } from "../ui/media-image";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -10,28 +11,21 @@ import {
   Bookmark,
   Check,
   ChevronDown,
-  ChevronRight,
   CircleHelp,
   Clapperboard,
   Clock3,
-  Copy,
   Crop,
   Download,
   Expand,
   Film,
-  FolderOpen,
-  ImagePlus,
   Info,
   Layers3,
-  LoaderCircle,
   Maximize2,
   Monitor,
-  MoreHorizontal,
   Play,
   Plus,
   RectangleHorizontal,
   RectangleVertical,
-  Save,
   ScanFace,
   Settings2,
   ShieldCheck,
@@ -53,8 +47,9 @@ import {
 } from "../ui/ui";
 import { UploadCard } from "./upload";
 import { VideoPlayer, VideoComparison } from "./player";
-import { api, post, cn, formatTime } from "@/lib/utils";
-import type { Aspect, Asset, Project } from "@/lib/types";
+import { parseStudioDraft } from "@/lib/studio-draft";
+import { api, post, cn } from "@/lib/utils";
+import type { Aspect, Asset, Workspace } from "@/lib/types";
 import { toast } from "sonner";
 const presets = [
   {
@@ -101,22 +96,103 @@ const presets = [
   },
 ];
 export function Studio() {
+  const { data, loading, error, refresh } = useWorkspace();
+  const search = useSearchParams();
+  if (loading)
+    return (
+      <div className="page-loading" role="status">
+        Opening your creative studio…
+      </div>
+    );
+  if (!data)
+    return (
+      <EmptyState
+        icon={<CircleHelp size={30} />}
+        title="Your workspace couldn’t be opened."
+        description={error || "Please try again."}
+        action={<Button onClick={() => void refresh()}>Try again</Button>}
+      />
+    );
+  if (
+    search.get("project") &&
+    !data.projects.some((p) => p.id === search.get("project"))
+  )
+    return (
+      <EmptyState
+        icon={<Film size={30} />}
+        title="Project not found"
+        description="This project is not available in your workspace."
+        action={
+          <Link className="btn btn-primary" href="/">
+            Back to studio
+          </Link>
+        }
+      />
+    );
+  return (
+    <StudioSession
+      key={`${data.user.id}:${search.toString()}`}
+      initialWorkspace={data}
+    />
+  );
+}
+
+function StudioSession({ initialWorkspace }: { initialWorkspace: Workspace }) {
   const { data, loading, refresh, openConfig, t } = useWorkspace(),
     search = useSearchParams();
-  const [source, setSource] = useState<Asset | null>(null),
-    [characters, setCharacters] = useState<Asset[]>([]),
-    [name, setName] = useState("Untitled transformation"),
-    [prompt, setPrompt] = useState(""),
-    [aspect, setAspect] = useState<Aspect>("original"),
-    [audio, setAudio] = useState<"preserve" | "mute">("preserve"),
-    [start, setStart] = useState(0),
-    [end, setEnd] = useState(0),
-    [pid, setPid] = useState<string | null>(null);
-  const [view, setView] = useState<"source" | "result" | "compare">("source"),
+  const router = useRouter();
+  const [initial] = useState(() => {
+    const project = initialWorkspace.projects.find(
+      (p) => p.id === search.get("project"),
+    );
+    const storageKey = `modify_studio_${initialWorkspace.user.id}`;
+    let stored: string | null = null;
+    if (!search.has("new"))
+      try {
+        stored = localStorage.getItem(storageKey);
+      } catch {
+        /* Browser storage may be disabled. */
+      }
+    const draft = project
+      ? parseStudioDraft(JSON.stringify(project))
+      : parseStudioDraft(stored);
+    const characterId = search.get("character");
+    if (characterId) {
+      draft.character_ids = [characterId];
+    }
+    const source =
+      initialWorkspace.assets.find((a) => a.id === draft.source_id) || null;
+    const characters = draft.character_ids
+      .map((cid) => initialWorkspace.assets.find((a) => a.id === cid))
+      .filter((a): a is Asset => !!a);
+    const projectId =
+      draft.id && initialWorkspace.projects.some((p) => p.id === draft.id)
+        ? draft.id
+        : null;
+    return {
+      draft,
+      source,
+      characters,
+      projectId,
+      view: project?.output_url ? ("result" as const) : ("source" as const),
+    };
+  });
+  const [source, setSource] = useState<Asset | null>(initial.source),
+    [characters, setCharacters] = useState<Asset[]>(initial.characters),
+    [name, setName] = useState(initial.draft.name),
+    [prompt, setPrompt] = useState(initial.draft.prompt),
+    [aspect, setAspect] = useState<Aspect>(initial.draft.aspect),
+    [audio, setAudio] = useState<"preserve" | "mute">(initial.draft.audio),
+    [start, setStart] = useState(initial.draft.trim_start),
+    [end, setEnd] = useState(initial.draft.trim_end),
+    [pid, setPid] = useState<string | null>(initial.projectId);
+  const [view, setView] = useState<"source" | "result" | "compare">(
+      initial.view,
+    ),
     [saving, setSaving] = useState(false),
     [generating, setGenerating] = useState(false),
     [consent, setConsent] = useState(false),
-    [saved, setSaved] = useState(false),
+    [savedSignature, setSavedSignature] = useState<string | null>(null),
     [how, setHow] = useState(false),
     [library, setLibrary] = useState(false),
     [edit, setEdit] = useState(false),
@@ -128,78 +204,28 @@ export function Studio() {
     [enhance, setEnhance] = useState(false),
     [editing, setEditing] = useState(false),
     [sampleLoading, setSampleLoading] = useState(false);
-  const loaded = useRef(""),
-    preview = useRef<HTMLDivElement>(null);
-  const searchKey = search.toString();
-  useEffect(() => {
-    if (!data) return;
-    const key = `${data.user.id}:${searchKey}`;
-    if (loaded.current === key) return;
-    loaded.current = key;
-    const projectId = search.get("project"),
-      characterId = search.get("character");
-    const p = projectId ? data.projects.find((p) => p.id === projectId) : null;
-    if (projectId && !p) {
-      toast.error("This project is not available in your workspace.");
-      return;
-    }
-    let draft: any = null;
-    try {
-      draft = JSON.parse(
-        localStorage.getItem(`modify_studio_${data.user.id}`) || "null",
-      );
-    } catch {}
-    const initial = p || (!characterId ? draft : null);
-    if (initial) {
-      setPid(p?.id || initial.id || null);
-      setName(initial.name || "Untitled transformation");
-      setPrompt(initial.prompt || "");
-      setSource(data.assets.find((a) => a.id === initial.source_id) || null);
-      setCharacters(
-        (initial.character_ids || [])
-          .map((cid: string) => data.assets.find((a) => a.id === cid))
-          .filter(Boolean),
-      );
-      setStart(initial.trim_start || 0);
-      setEnd(initial.trim_end || 0);
-      setAspect(initial.aspect || "original");
-      setAudio(initial.audio || "preserve");
-      setView(p?.output_url ? "result" : "source");
-    }
-    if (characterId) {
-      const char = data.assets.find((a) => a.id === characterId);
-      if (char) setCharacters([char]);
-    }
-  }, [data, searchKey, search]);
-  useEffect(() => {
-    if (!data || !loaded.current) return;
-    localStorage.setItem(
-      `modify_studio_${data.user.id}`,
-      JSON.stringify({
-        id: pid,
-        name,
-        prompt,
-        source_id: source?.id || null,
-        character_ids: characters.map((a) => a.id),
-        trim_start: start,
-        trim_end: end,
-        aspect,
-        audio,
-      }),
-    );
-    setSaved(false);
-  }, [
-    pid,
+  const draftSignature = JSON.stringify({
     name,
     prompt,
-    source,
-    characters,
-    start,
-    end,
+    source_id: source?.id || null,
+    character_ids: characters.map((c) => c.id),
+    trim_start: start,
+    trim_end: end,
     aspect,
     audio,
-    data?.user.id,
-  ]);
+  });
+  const saved = savedSignature === draftSignature;
+  const userId = initialWorkspace.user.id;
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        `modify_studio_${userId}`,
+        JSON.stringify({ ...JSON.parse(draftSignature), id: pid }),
+      );
+    } catch {
+      /* Local storage is a convenience, not the source of truth for saved projects. */
+    }
+  }, [userId, pid, draftSignature]);
   const current = data?.projects.find((p) => p.id === pid),
     job = data?.jobs.find((j) => j.project_id === pid),
     active = job && ["queued", "uploading", "processing"].includes(job.status);
@@ -223,7 +249,7 @@ export function Studio() {
         { method: pid ? "PATCH" : "POST", body: JSON.stringify(payload()) },
       );
       setPid(result.id);
-      setSaved(true);
+      setSavedSignature(draftSignature);
       await refresh();
       return result.id;
     } finally {
@@ -268,7 +294,7 @@ export function Studio() {
         description: "Create an account to start a real generation.",
         action: {
           label: "Create account",
-          onClick: () => window.location.assign("/signup"),
+          onClick: () => router.push("/signup"),
         },
       });
       return;
@@ -294,7 +320,7 @@ export function Studio() {
     setEnd(asset ? Math.min(30, asset.metadata.duration || 0) : 0);
     setView("source");
   };
-  const useCharacter = (asset: Asset) => {
+  const toggleCharacterReference = (asset: Asset) => {
     setCharacters((prev) =>
       prev.some((c) => c.id === asset.id)
         ? prev.filter((c) => c.id !== asset.id)
@@ -304,18 +330,7 @@ export function Studio() {
     );
   };
   const newProject = () => {
-    setPid(null);
-    setSource(null);
-    setCharacters([]);
-    setPrompt("");
-    setName("Untitled transformation");
-    setStart(0);
-    setEnd(0);
-    setAspect("original");
-    setAudio("preserve");
-    setView("source");
-    setConsent(false);
-    window.history.replaceState(null, "", "/");
+    router.push(`/?new=${Date.now()}`);
     toast.success("A fresh canvas. Let’s make something great.");
   };
   const useConcept = async () => {
@@ -517,7 +532,7 @@ export function Studio() {
                     }
                     title="Remove reference"
                   >
-                    <img src={c.url} alt={c.name} />
+                    <MediaImage src={c.url} alt={c.name} />
                     <X size={9} />
                   </button>
                 ))}
@@ -609,7 +624,6 @@ export function Studio() {
                 "main-preview",
                 source && view === "source" && "has-video",
               )}
-              ref={preview}
             >
               {view === "source" ? (
                 source ? (
@@ -618,14 +632,14 @@ export function Studio() {
                     start={start}
                     end={end}
                     poster={
-                      (source.metadata as any).thumbnail_id
-                        ? `/api/assets/${(source.metadata as any).thumbnail_id}`
+                      source.metadata.thumbnail_id
+                        ? `/api/assets/${source.metadata.thumbnail_id}`
                         : undefined
                     }
                   />
                 ) : (
                   <div className="inspiration-preview">
-                    <img
+                    <MediaImage
                       src="/images/motion-editorial.jpg"
                       alt="Illustrative fashion dancer concept in a violet-lit concrete plaza"
                     />
@@ -930,7 +944,7 @@ export function Studio() {
               );
             }}
           >
-            <img
+            <MediaImage
               src="/images/motion-editorial.jpg"
               alt="Silver-jacket dancer concept"
             />
@@ -950,7 +964,7 @@ export function Studio() {
             className="inspiration-card card-character"
             onClick={() => setLibrary(true)}
           >
-            <img
+            <MediaImage
               src="/images/character-editorial.jpg"
               alt="Original silver-haired 3D character concept"
             />
@@ -975,7 +989,7 @@ export function Studio() {
               );
             }}
           >
-            <img
+            <MediaImage
               src="/images/motion-concept.jpg"
               alt="Illustrative cinematic android dancer concept"
             />
@@ -1065,9 +1079,9 @@ export function Studio() {
                   "character-picker-card",
                   characters.some((x) => x.id === c.asset_id) && "selected",
                 )}
-                onClick={() => asset && useCharacter(asset)}
+                onClick={() => asset && toggleCharacterReference(asset)}
               >
-                <img src={c.url} alt={c.name} />
+                <MediaImage src={c.url} alt={c.name} />
                 <span>{c.name}</span>
                 {characters.some((x) => x.id === c.asset_id) && (
                   <i>
@@ -1078,7 +1092,7 @@ export function Studio() {
             );
           })}
           <div className="character-picker-card concept-character">
-            <img
+            <MediaImage
               src="/images/character-editorial.jpg"
               alt="Studio Muse original concept reference"
             />
@@ -1109,7 +1123,7 @@ export function Studio() {
       >
         <div className="edit-image-preview">
           {characters[0] && (
-            <img
+            <MediaImage
               src={characters[0].url}
               alt="Character to edit"
               style={{
@@ -1234,7 +1248,7 @@ export function Studio() {
         ) : source ? (
           <VideoPlayer src={source.url} start={start} end={end} />
         ) : (
-          <img
+          <MediaImage
             className="fullscreen-concept"
             src="/images/motion-editorial.jpg"
             alt="Illustrative dancer concept, not a generated video"

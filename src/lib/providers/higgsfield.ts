@@ -1,3 +1,4 @@
+import { AuthenticationError, APIError } from "@higgsfield/client/v2";
 import { createHiggsfieldClient } from "@higgsfield/client/v2";
 import { z } from "zod";
 import { lookup } from "node:dns/promises";
@@ -91,9 +92,10 @@ export async function downloadRemote(
   throw new ProviderError("Too many media redirects.");
 }
 async function hfFetch(url: string, init: RequestInit = {}) {
+  providerUrl(url);
   let response: Response;
   try {
-    response = await fetch(providerUrl(url), {
+    response = await fetch(url, {
       ...init,
       redirect: "error",
       headers: {
@@ -190,9 +192,18 @@ export class HiggsfieldProvider implements MotionProvider {
       if (res.status_url) providerUrl(res.status_url);
       if (res.cancel_url) providerUrl(res.cancel_url);
       return res;
-    } catch (e: any) {
+    } catch (e) {
       if (e instanceof ProviderError) throw e;
-      const status = Number(e.status || e.statusCode || 0);
+      if (e instanceof z.ZodError)
+        throw new ProviderError(
+          "The AI provider returned an invalid response.",
+        );
+      const status =
+        e instanceof AuthenticationError
+          ? 401
+          : e instanceof APIError
+            ? e.statusCode || 0
+            : 0;
       throw new ProviderError(
         status === 401
           ? "The AI provider credentials were rejected."

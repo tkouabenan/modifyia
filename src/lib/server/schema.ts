@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS notifications (
  message TEXT NOT NULL, read_at TEXT, created_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS rate_limits (key TEXT PRIMARY KEY, count INTEGER NOT NULL, reset_at TEXT NOT NULL);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_jobs_one_active_project ON generation_jobs(project_id) WHERE status IN ('queued','uploading','processing');
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_uploads_user ON video_uploads(user_id);
 CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id, updated_at);

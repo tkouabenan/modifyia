@@ -1,3 +1,4 @@
+import type { SettingRow } from "./records";
 import { oneSql } from "../db";
 import type { Plan, Configuration } from "../types";
 
@@ -58,9 +59,10 @@ export const defaults = {
   ],
 };
 export async function pricing() {
-  const setting = await oneSql("SELECT value FROM settings WHERE key = ?", [
-    "pricing",
-  ]);
+  const setting = await oneSql<SettingRow>(
+    "SELECT value FROM settings WHERE key = ?",
+    ["pricing"],
+  );
   return setting ? { ...defaults, ...JSON.parse(setting.value) } : defaults;
 }
 export async function plans(): Promise<Plan[]> {
@@ -80,14 +82,17 @@ export async function plans(): Promise<Plan[]> {
 }
 export async function configuration(): Promise<Configuration> {
   const p = await pricing();
-  const worker = await oneSql("SELECT value FROM settings WHERE key = ?", [
-    "worker_heartbeat",
-  ]);
+  const worker = await oneSql<SettingRow>(
+    "SELECT value FROM settings WHERE key = ?",
+    ["worker_heartbeat"],
+  );
   return {
     provider: !!process.env.HF_CREDENTIALS,
     email: !!(process.env.SMTP_HOST && process.env.MAIL_FROM),
     google: !!(
-      process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+      process.env.GOOGLE_CLIENT_ID &&
+      process.env.GOOGLE_CLIENT_SECRET &&
+      (process.env.SESSION_SECRET?.length || 0) >= 32
     ),
     billing: !!(
       process.env.STRIPE_SECRET_KEY && process.env.STRIPE_WEBHOOK_SECRET
