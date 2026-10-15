@@ -86,8 +86,10 @@ export async function configuration(): Promise<Configuration> {
     "SELECT value FROM settings WHERE key = ?",
     ["worker_heartbeat"],
   );
+  const higgsfield = process.env.MOTION_PROVIDER === "higgsfield";
   return {
-    provider: !!process.env.HF_CREDENTIALS,
+    provider: higgsfield ? !!process.env.HF_CREDENTIALS : true,
+    engine: higgsfield ? "higgsfield" : "local",
     email: !!(process.env.SMTP_HOST && process.env.MAIL_FROM),
     google: !!(
       process.env.GOOGLE_CLIENT_ID &&

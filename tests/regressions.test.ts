@@ -192,13 +192,17 @@ describe("Atomic generation accounting", () => {
     });
     expect(await balance()).toBe(100);
   });
-  it("does not charge credits when the provider is unconfigured", async () => {
+  it("does not charge credits when the cloud provider is unconfigured", async () => {
     const credentials = process.env.HF_CREDENTIALS;
+    const previous = process.env.MOTION_PROVIDER;
+    process.env.MOTION_PROVIDER = "higgsfield";
     delete process.env.HF_CREDENTIALS;
     try {
       await expect(reserve()).rejects.toMatchObject({ status: 503 });
       expect(await balance()).toBe(100);
     } finally {
+      if (previous === undefined) delete process.env.MOTION_PROVIDER;
+      else process.env.MOTION_PROVIDER = previous;
       process.env.HF_CREDENTIALS = credentials;
     }
   });

@@ -19,12 +19,13 @@ An AI character and motion-transfer studio built with Next.js, React, TypeScript
 - Email/password authentication endpoints and pages, opaque server-side sessions, verification/reset tokens, and a Google OAuth integration.
 - User-scoped project, character, media, notification, billing, and administrator API handlers with matching UI.
 - A persistent database-backed generation queue with worker leases, provider polling, stable submission idempotency keys, credit reservations, and refunds.
-- Official Higgsfield TypeScript SDK submission adapter for `higgsfield/genjutsu/motion-transfer/v1.0`, with explicit status/cancellation handling.
+- Default **local motion engine** (FFmpeg + tracked character composite) that generates real 720p MP4 files without Higgsfield.
+- Optional Higgsfield TypeScript SDK adapter for `higgsfield/genjutsu/motion-transfer/v1.0` when `MOTION_PROVIDER=higgsfield`.
 - Local private media storage and an S3-compatible storage implementation.
 - Stripe Checkout, customer portal, and signature-verified webhook handlers.
 - Initial English/French strings and clearly labeled illustrative concept artwork.
 
-These are code paths, **not a claim that every workflow has passed end-to-end testing**. No sample artwork is presented as a completed video generation. Generation is gated on server credentials and an online worker.
+These are code paths, **not a claim that every workflow has passed end-to-end testing**. No sample artwork is presented as a completed video generation. Local generation processes the uploaded clip and character on the server; it is not a neural identity-lock model on the scale of Genjutsu.
 
 ## Local development
 
@@ -39,11 +40,19 @@ npm run dev
 
 In another terminal, using the same database/media configuration:
 
-```bash
-npm run worker
-```
+The development server embeds the generation worker (`EMBED_WORKER=true` by default). You can still run `npm run worker` separately.
 
-The development server binds to `0.0.0.0:3000`. With the default configuration, local data lives under ignored `data/` paths. The worker loads `.env.local` directly.
+The development server binds to `0.0.0.0:3000`. With the default configuration, local data lives under ignored `data/` paths.
+
+### Super admin (local testing)
+
+`npm run db:setup` creates a verified administrator:
+
+- Email: `admin@modify.ai` (or `ADMIN_EMAIL`)
+- Password: `ModifyAdmin2026!` (or `ADMIN_PASSWORD`)
+- 100,000 test credits
+
+Sign in at `/login`, then open `/create` to generate.
 
 Without external credentials, the application can create an isolated preview workspace and exercise local media/project APIs. Real video generation, payments, Google sign-in, and email delivery need the services below.
 
@@ -51,11 +60,11 @@ Without external credentials, the application can create an isolated preview wor
 
 See [`.env.example`](.env.example) for the variable names.
 
-### Higgsfield
+### Motion engine
 
-Set `HF_CREDENTIALS` to the provider-issued `KEY_ID:KEY_SECRET`, ensure the account has Genjutsu API access and balance, and run the worker. The adapter accepts a normalized source video, 1–8 reference images, an optional prompt, and 720p output. Sources must be trimmed to 4–30 seconds.
+Default: `MOTION_PROVIDER=local`. The worker trims the source, tracks subject motion with frame differencing, composites the character reference, and exports H.264/AAC 720p MP4. This is real media processing of the user's files, not a stock clip.
 
-The worker sends prepared assets to the provider's temporary upload service. It persists the request identifier before polling, retrieves the actual result, and normalizes it into private storage. There is no simulated generation fallback. Network access to Higgsfield and its returned storage/CDN URLs is required.
+Optional cloud: set `MOTION_PROVIDER=higgsfield` and `HF_CREDENTIALS=KEY_ID:KEY_SECRET`. Sources must be trimmed to 4–30 seconds.
 
 Provider reference: <https://docs.higgsfield.ai/docs/models/genjutsu/motion-transfer>
 

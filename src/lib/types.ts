@@ -97,6 +97,7 @@ export interface Plan {
 }
 export interface Configuration {
   provider: boolean;
+  engine: "local" | "higgsfield";
   email: boolean;
   google: boolean;
   billing: boolean;

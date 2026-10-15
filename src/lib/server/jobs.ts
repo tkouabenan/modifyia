@@ -17,7 +17,9 @@ export async function createJob(
   const config = await configuration();
   assert(
     config.provider,
-    "Real AI generation is not configured. Add HF_CREDENTIALS on the server to enable Higgsfield Genjutsu.",
+    config.engine === "higgsfield"
+      ? "Cloud generation is not configured. Add HF_CREDENTIALS or switch MOTION_PROVIDER to local."
+      : "The local motion engine is unavailable.",
     503,
   );
   assert(
@@ -42,7 +44,9 @@ export async function createJob(
     );
     assert(!user.suspended, "This account has been suspended.", 403);
     assert(
-      !config.requireVerification || user.email_verified,
+      !config.requireVerification ||
+        user.email_verified ||
+        user.role === "admin",
       "Verify your email before starting a generation.",
       403,
     );

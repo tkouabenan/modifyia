@@ -5,6 +5,7 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import type { MotionProvider, ProviderResult } from "./types";
 import { ProviderError } from "./types";
+import { LocalMotionProvider, readLocalMedia } from "./local";
 const base = "https://api.higgsfield.ai";
 const resultSchema = z.object({
   request_id: z.string().min(1),
@@ -53,6 +54,12 @@ export async function downloadRemote(
   url: string,
   maxBytes = 250 * 1024 * 1024,
 ): Promise<Buffer> {
+  const local = readLocalMedia(url);
+  if (local) {
+    if (local.length > maxBytes)
+      throw new ProviderError("The generated video is too large.");
+    return local;
+  }
   for (let redirects = 0; redirects < 4; redirects++) {
     await safeRemoteUrl(url);
     const response = await fetch(url, {
@@ -221,4 +228,8 @@ export class HiggsfieldProvider implements MotionProvider {
     await hfFetch(url, { method: "POST" });
   }
 }
-export const motionProvider = (): MotionProvider => new HiggsfieldProvider();
+export function usesCloudProvider() {
+  return process.env.MOTION_PROVIDER === "higgsfield";
+}
+export const motionProvider = (): MotionProvider =>
+  usesCloudProvider() ? new HiggsfieldProvider() : new LocalMotionProvider();
