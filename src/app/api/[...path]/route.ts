@@ -1,8 +1,9 @@
+import type { CountRow, ProjectRow } from "@/lib/server/records";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import sharp from "sharp";
 import bcrypt from "bcryptjs";
-import { execSql, oneSql, querySql, transaction } from "@/lib/db";
+import { execSql, oneSql, querySql } from "@/lib/db";
 import {
   AppError,
   assert,
@@ -154,7 +155,7 @@ async function dispatch(req: Request, segments: string[]) {
       413,
     );
     const asset = await processUpload(user.id, file, kind);
-    const current = await oneSql(
+    const current = await oneSql<CountRow>(
       "SELECT COALESCE(SUM(size),0) AS total FROM video_uploads WHERE user_id=?",
       [user.id],
     );
@@ -192,7 +193,7 @@ async function dispatch(req: Request, segments: string[]) {
     const asset = await assetFor(user.id, segments[1]);
     if (method === "GET") return serveAsset(req, asset);
     if (method === "DELETE") {
-      const projects = await querySql(
+      const projects = await querySql<ProjectRow>(
         "SELECT source_id,character_ids FROM projects WHERE user_id=?",
         [user.id],
       );

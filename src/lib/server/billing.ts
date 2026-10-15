@@ -1,3 +1,4 @@
+import type { SubscriptionRow, UserRow } from "./records";
 import Stripe from "stripe";
 import { execSql, oneSql, transaction } from "../db";
 import { plans, now } from "./config";
@@ -20,13 +21,15 @@ export async function checkout(req: Request, userId: string, planId: string) {
     503,
   );
   const stripe = stripeClient();
-  const user = await oneSql("SELECT * FROM users WHERE id=?", [userId]);
+  const user = await oneSql<UserRow>("SELECT * FROM users WHERE id=?", [
+    userId,
+  ]);
   assert(
     user && user.role !== "guest",
     "Create an account before choosing a plan.",
     401,
   );
-  const existing = await oneSql(
+  const existing = await oneSql<SubscriptionRow>(
     "SELECT id FROM subscriptions WHERE user_id=? AND status IN ('active','trialing','past_due')",
     [userId],
   );
@@ -48,7 +51,11 @@ export async function checkout(req: Request, userId: string, planId: string) {
   if (!customer) {
     customer = (
       await stripe.customers.create(
-        { email: user.email, name: user.name, metadata: { user_id: userId } },
+        {
+          email: user.email || undefined,
+          name: user.name,
+          metadata: { user_id: userId },
+        },
         { idempotencyKey: `customer:${userId}` },
       )
     ).id;
@@ -71,9 +78,10 @@ export async function checkout(req: Request, userId: string, planId: string) {
   return { url: session.url };
 }
 export async function billingPortal(req: Request, userId: string) {
-  const user = await oneSql("SELECT stripe_customer_id FROM users WHERE id=?", [
-    userId,
-  ]);
+  const user = await oneSql<UserRow>(
+    "SELECT stripe_customer_id FROM users WHERE id=?",
+    [userId],
+  );
   assert(
     user?.stripe_customer_id,
     "No billing account exists yet. Choose a paid plan first.",
@@ -115,9 +123,7 @@ export async function stripeWebhook(req: Request) {
     sub = event.data.object as Stripe.Subscription;
   if (event.type === "invoice.paid") {
     invoice = event.data.object as Stripe.Invoice;
-    const rawSub =
-      (invoice as any).parent?.subscription_details?.subscription ||
-      (invoice as any).subscription;
+    const rawSub = invoice.parent?.subscription_details?.subscription;
     if (rawSub)
       sub = await stripe.subscriptions.retrieve(
         typeof rawSub === "string" ? rawSub : rawSub.id,
@@ -133,9 +139,10 @@ export async function stripeWebhook(req: Request) {
     const uid = sub.metadata.user_id,
       planId = sub.metadata.plan;
     const user = uid
-      ? await oneSql("SELECT id,stripe_customer_id FROM users WHERE id=?", [
-          uid,
-        ])
+      ? await oneSql<UserRow>(
+          "SELECT id,stripe_customer_id FROM users WHERE id=?",
+          [uid],
+        )
       : null;
     assert(user, "Subscription user could not be resolved.", 400);
     const customerId =
@@ -149,9 +156,7 @@ export async function stripeWebhook(req: Request) {
       (p) => p.id === planId && p.id !== "free",
     );
     assert(plan, "Unknown subscription plan.");
-    const periodEnd =
-      (sub as any).current_period_end ||
-      (sub.items.data[0] as any)?.current_period_end;
+    const periodEnd = sub.items.data[0]?.current_period_end;
     await execSql(
       "INSERT INTO subscriptions(id,user_id,stripe_subscription_id,plan,status,current_period_end,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(stripe_subscription_id) DO UPDATE SET plan=excluded.plan,status=excluded.status,current_period_end=excluded.current_period_end,updated_at=excluded.updated_at",
       [

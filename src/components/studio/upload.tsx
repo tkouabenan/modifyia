@@ -1,4 +1,5 @@
 "use client";
+import { MediaImage } from "../ui/media-image";
 import { useRef, useState } from "react";
 import {
   CloudUpload,
@@ -75,8 +76,8 @@ export function UploadCard({
     xhr.send(form);
   };
   const thumbnail =
-    asset?.kind === "video" && (asset.metadata as any).thumbnail_id
-      ? `/api/assets/${(asset.metadata as any).thumbnail_id}`
+    asset?.kind === "video" && asset.metadata.thumbnail_id
+      ? `/api/assets/${asset.metadata.thumbnail_id}`
       : asset?.url;
   return (
     <div className="input-section">
@@ -139,7 +140,7 @@ export function UploadCard({
               kind === "image" && "uploaded-character",
             )}
           >
-            <img
+            <MediaImage
               src={thumbnail}
               alt={
                 kind === "video"

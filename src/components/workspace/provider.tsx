@@ -8,8 +8,9 @@ import {
   type ReactNode,
 } from "react";
 import type { Workspace } from "@/lib/types";
-import { api, post } from "@/lib/utils";
+import { post } from "@/lib/utils";
 import { dictionaries } from "@/lib/i18n";
+import Link from "next/link";
 import { Modal, Button } from "../ui/ui";
 import {
   Check,
@@ -21,6 +22,13 @@ import {
   ExternalLink,
   LoaderCircle,
 } from "lucide-react";
+let bootstrapInFlight: Promise<Workspace> | null = null;
+function bootstrapWorkspace() {
+  bootstrapInFlight ??= post<Workspace>("bootstrap").finally(() => {
+    bootstrapInFlight = null;
+  });
+  return bootstrapInFlight;
+}
 const Context = createContext<{
   data: Workspace | null;
   loading: boolean;
@@ -46,7 +54,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     [configOpen, setConfigOpen] = useState(false);
   const refresh = useCallback(async () => {
     try {
-      setData(await api<Workspace>("workspace"));
+      setData(await bootstrapWorkspace());
+      setLoading(false);
       setError(null);
     } catch (e) {
       setError((e as Error).message);
@@ -54,7 +63,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
   useEffect(() => {
     let alive = true;
-    post<Workspace>("bootstrap")
+    bootstrapWorkspace()
       .then((d) => {
         if (alive) {
           setData(d);
@@ -71,16 +80,22 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       alive = false;
     };
   }, []);
+  const hasWorkspace = data !== null;
+  const activeJobs = data?.stats.active || 0;
   useEffect(() => {
-    if (!data) return;
+    if (!hasWorkspace) return;
     const timer = setInterval(
       () => {
         if (!document.hidden) void refresh();
       },
-      data.stats.active ? 5000 : 30000,
+      activeJobs ? 5000 : 30000,
     );
     return () => clearInterval(timer);
-  }, [data?.stats.active, !!data, refresh]);
+  }, [activeJobs, hasWorkspace, refresh]);
+  const locale = data?.user.locale || "en";
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
   const t = dictionaries[data?.user.locale || "en"];
   return (
     <Context.Provider
@@ -171,13 +186,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           Stripe.
         </p>
         <div className="modal-actions">
-          <a
+          <Link
             href="/help#setup"
             className="btn btn-secondary"
             onClick={() => setConfigOpen(false)}
           >
             Setup guide <ExternalLink size={14} />
-          </a>
+          </Link>
           <Button variant="primary" onClick={() => setConfigOpen(false)}>
             Back to creating
           </Button>

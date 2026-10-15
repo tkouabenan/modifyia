@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowUpRight,
   Bell,
@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { Brand } from "../brand";
 import { useWorkspace } from "./provider";
-import { Menu, Modal, Button } from "../ui/ui";
+import { Menu, Modal } from "../ui/ui";
 import { cn, post } from "@/lib/utils";
 import { toast } from "sonner";
 export function WorkspaceShell({ children }: { children: ReactNode }) {
@@ -42,16 +42,27 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
     [searchTerm, setSearchTerm] = useState("");
   const nav = [
     { label: t.overview, href: "/overview", icon: LayoutDashboard },
-    { label: t.create, href: "/", icon: WandSparkles },
+    { label: t.create, href: "/create", icon: WandSparkles },
     { label: t.projects, href: "/projects", icon: FolderOpen },
     { label: t.history, href: "/history", icon: Clock3 },
     { label: t.characters, href: "/characters", icon: UsersRound },
     { label: t.queue, href: "/queue", icon: Clapperboard },
   ];
+  const router = useRouter();
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setSearch(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const logout = async () => {
     try {
       await post("auth/logout");
-      window.location.href = "/login";
+      router.replace("/login");
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -60,7 +71,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
     <div className="app-shell">
       <aside className={cn("sidebar", mobile && "mobile-open")}>
         <div className="sidebar-brand">
-          <Brand />
+          <Brand href="/overview" />
           <button
             className="icon-button mobile-close"
             onClick={() => setMobile(false)}
@@ -73,8 +84,8 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
           className="workspace-picker"
           onClick={() =>
             data?.user.role === "guest"
-              ? window.location.assign("/signup")
-              : window.location.assign("/settings")
+              ? router.push("/signup")
+              : router.push("/settings")
           }
         >
           <span className="workspace-avatar">
@@ -107,7 +118,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             >
               <item.icon size={18} strokeWidth={1.7} />
               <span>{item.label}</span>
-              {item.href === "/" && <span className="nav-new">NEW</span>}
+              {item.href === "/create" && <span className="nav-new">NEW</span>}
               {item.href === "/queue" && !!data?.stats.active && (
                 <span className="nav-count">{data.stats.active}</span>
               )}
@@ -201,19 +212,19 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
                       {
                         label: "Create an account",
                         icon: <Plus size={15} />,
-                        onClick: () => window.location.assign("/signup"),
+                        onClick: () => router.push("/signup"),
                       },
                       {
                         label: "Sign in",
                         icon: <ArrowUpRight size={15} />,
-                        onClick: () => window.location.assign("/login"),
+                        onClick: () => router.push("/login"),
                       },
                     ]
                   : [
                       {
                         label: "Account settings",
                         icon: <Settings2 size={15} />,
-                        onClick: () => window.location.assign("/settings"),
+                        onClick: () => router.push("/settings"),
                       },
                       {
                         label: "Sign out",
@@ -246,7 +257,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             <span className="topbar-workspace">Workspace</span>
             <ChevronRight size={13} />
             <span>
-              {path === "/"
+              {path === "/create"
                 ? t.studio
                 : [
                     ...nav,
@@ -280,7 +291,9 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
               aria-label="View notifications"
               onClick={() => {
                 setNotifications(true);
-                void post("notifications/read").then(refresh);
+                void post("notifications/read")
+                  .then(refresh)
+                  .catch((e) => toast.error((e as Error).message));
               }}
             >
               <Bell size={19} />
@@ -297,7 +310,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
                 {
                   label: "Visit product page",
                   icon: <ArrowUpRight size={15} />,
-                  onClick: () => window.location.assign("/discover"),
+                  onClick: () => router.push("/discover"),
                 },
               ]}
             >
@@ -379,10 +392,10 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             .map((p) => (
               <Link
                 key={p.id}
-                href={`/?project=${p.id}`}
+                href={`/create?project=${p.id}`}
                 onClick={() => {
                   setSearch(false);
-                  if (path === "/") window.location.assign(`/?project=${p.id}`);
+                  if (path === "/create") router.push(`/create?project=${p.id}`);
                 }}
               >
                 <FolderOpen size={18} />

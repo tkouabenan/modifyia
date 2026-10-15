@@ -38,9 +38,10 @@ export function VideoPlayer({
     } else video.current.pause();
   };
   useEffect(() => {
-    setPlaying(false);
-    setTime(start);
-    if (video.current) video.current.currentTime = start;
+    const element = video.current;
+    if (!element) return;
+    element.pause();
+    if (element.readyState >= 1) element.currentTime = start;
   }, [src, start]);
   return (
     <div className="video-player" ref={container}>
@@ -52,7 +53,13 @@ export function VideoPlayer({
         preload="metadata"
         muted={muted}
         onClick={toggle}
+        onEmptied={() => {
+          setPlaying(false);
+          setTime(start);
+          setDuration(0);
+        }}
         onLoadedMetadata={(e) => {
+          setTime(start);
           setDuration(e.currentTarget.duration);
           e.currentTarget.currentTime = start;
         }}

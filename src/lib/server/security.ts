@@ -89,9 +89,10 @@ export async function rateLimit(
       `INSERT INTO rate_limits(key,count,reset_at) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET count=CASE WHEN rate_limits.reset_at < ? THEN 1 ELSE rate_limits.count+1 END, reset_at=CASE WHEN rate_limits.reset_at < ? THEN ? ELSE rate_limits.reset_at END`,
       [key, reset, now(), now(), reset],
     );
-    const row = await oneSql("SELECT count FROM rate_limits WHERE key=?", [
-      key,
-    ]);
+    const row = await oneSql<{ count: number }>(
+      "SELECT count FROM rate_limits WHERE key=?",
+      [key],
+    );
     if (row!.count > max)
       throw new AppError(429, "Too many requests. Please try again shortly.");
   });

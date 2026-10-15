@@ -1,4 +1,12 @@
-import { execSql, oneSql, querySql, transaction } from "../db";
+import type {
+  AuditRow,
+  JobRow,
+  PaymentRow,
+  SubscriptionRow,
+  UsageRow,
+  UserRow,
+} from "./records";
+import { execSql, querySql, transaction } from "../db";
 import { now, pricing } from "./config";
 import { requireAccount } from "./auth";
 import { assert, id } from "./security";
@@ -11,22 +19,22 @@ export async function requireAdmin(req: Request) {
 export async function adminData() {
   const [users, jobs, usage, payments, subscriptions, audit, settings] =
     await Promise.all([
-      querySql(
+      querySql<UserRow>(
         "SELECT id,email,name,role,credits,email_verified,suspended,created_at FROM users WHERE role<>'guest' ORDER BY created_at DESC LIMIT 100",
       ),
-      querySql(
+      querySql<JobRow & { email: string; project_name: string }>(
         "SELECT j.*,u.email,p.name AS project_name FROM generation_jobs j JOIN users u ON u.id=j.user_id JOIN projects p ON p.id=j.project_id ORDER BY j.created_at DESC LIMIT 100",
       ),
-      querySql(
+      querySql<UsageRow>(
         "SELECT * FROM provider_usage ORDER BY created_at DESC LIMIT 100",
       ),
-      querySql(
+      querySql<PaymentRow>(
         "SELECT * FROM payment_transactions ORDER BY created_at DESC LIMIT 100",
       ),
-      querySql(
+      querySql<SubscriptionRow & { email: string }>(
         "SELECT s.*,u.email FROM subscriptions s JOIN users u ON u.id=s.user_id ORDER BY s.created_at DESC LIMIT 100",
       ),
-      querySql(
+      querySql<AuditRow>(
         "SELECT * FROM admin_audit_logs ORDER BY created_at DESC LIMIT 50",
       ),
       pricing(),
