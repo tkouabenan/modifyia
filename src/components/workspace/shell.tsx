@@ -42,7 +42,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
     [searchTerm, setSearchTerm] = useState("");
   const nav = [
     { label: t.overview, href: "/overview", icon: LayoutDashboard },
-    { label: t.create, href: "/", icon: WandSparkles },
+    { label: t.create, href: "/create", icon: WandSparkles },
     { label: t.projects, href: "/projects", icon: FolderOpen },
     { label: t.history, href: "/history", icon: Clock3 },
     { label: t.characters, href: "/characters", icon: UsersRound },
@@ -71,7 +71,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
     <div className="app-shell">
       <aside className={cn("sidebar", mobile && "mobile-open")}>
         <div className="sidebar-brand">
-          <Brand />
+          <Brand href="/overview" />
           <button
             className="icon-button mobile-close"
             onClick={() => setMobile(false)}
@@ -118,7 +118,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             >
               <item.icon size={18} strokeWidth={1.7} />
               <span>{item.label}</span>
-              {item.href === "/" && <span className="nav-new">NEW</span>}
+              {item.href === "/create" && <span className="nav-new">NEW</span>}
               {item.href === "/queue" && !!data?.stats.active && (
                 <span className="nav-count">{data.stats.active}</span>
               )}
@@ -257,7 +257,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             <span className="topbar-workspace">Workspace</span>
             <ChevronRight size={13} />
             <span>
-              {path === "/"
+              {path === "/create"
                 ? t.studio
                 : [
                     ...nav,
@@ -392,10 +392,10 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
             .map((p) => (
               <Link
                 key={p.id}
-                href={`/?project=${p.id}`}
+                href={`/create?project=${p.id}`}
                 onClick={() => {
                   setSearch(false);
-                  if (path === "/") router.push(`/?project=${p.id}`);
+                  if (path === "/create") router.push(`/create?project=${p.id}`);
                 }}
               >
                 <FolderOpen size={18} />

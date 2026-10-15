@@ -105,7 +105,7 @@ export async function runOne(workerId: string = id()): Promise<boolean> {
         [prepared.id, job.id, workerId],
       );
       job.prepared_source_id = prepared.id;
-      await stage("uploading", "Uploading prepared references to Higgsfield");
+      await stage("uploading", "Preparing character and motion references");
       const videoUrl =
         job.source_url ||
         (await provider.upload(await assetBuffer(prepared), "video/mp4"));

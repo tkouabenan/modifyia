@@ -127,17 +127,26 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           {[
             {
               icon: <Cpu size={20} />,
-              name: "Higgsfield Genjutsu",
-              desc: "Real character and motion transfer",
+              name:
+                data?.config.engine === "higgsfield"
+                  ? "Higgsfield Genjutsu"
+                  : "MODIFY local engine",
+              desc:
+                data?.config.engine === "higgsfield"
+                  ? "Cloud character and motion transfer"
+                  : "On-device motion transfer and 720p MP4 export",
               ok: data?.config.provider,
-              keys: "HF_CREDENTIALS=KEY_ID:KEY_SECRET",
+              keys:
+                data?.config.engine === "higgsfield"
+                  ? "HF_CREDENTIALS=KEY_ID:KEY_SECRET"
+                  : "MOTION_PROVIDER=local",
             },
             {
               icon: <LoaderCircle size={20} />,
               name: "Generation worker",
               desc: "Durable queue and FFmpeg exports",
               ok: data?.config.workerOnline,
-              keys: "npm run worker",
+              keys: "Embedded by default · or npm run worker",
             },
             {
               icon: <Database size={20} />,
@@ -181,9 +190,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           ))}
         </div>
         <p className="fineprint">
-          This environment may restrict outbound API access. Production hosting
-          must allow Higgsfield, your storage provider, Google, SMTP, and
-          Stripe.
+          Generation uses the local MODIFY engine unless MOTION_PROVIDER=higgsfield.
+          Cloud extras (Google, SMTP, Stripe, S3) remain optional.
         </p>
         <div className="modal-actions">
           <Link

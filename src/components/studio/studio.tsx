@@ -791,9 +791,15 @@ function StudioSession({ initialWorkspace }: { initialWorkspace: Workspace }) {
                 <WandSparkles size={19} />
               </span>
               <span>
-                <strong>Genjutsu Motion</strong>
+                <strong>
+                  {data?.config.engine === "higgsfield"
+                    ? "Genjutsu Motion"
+                    : "MODIFY local engine"}
+                </strong>
                 <small>
-                  Higgsfield <span>·</span> v1.0
+                  {data?.config.engine === "higgsfield"
+                    ? "Higgsfield · v1.0"
+                    : "On-device FFmpeg · 720p"}
                 </small>
               </span>
               <ChevronDown size={13} />
@@ -1048,10 +1054,11 @@ function StudioSession({ initialWorkspace }: { initialWorkspace: Workspace }) {
         <div className="info-box">
           <Info size={17} />
           <p>
-            Motion transfer needs a connected Higgsfield account and processing
-            worker. Results depend on the source performance and model
-            capabilities—not every gesture or facial detail can be reproduced
-            exactly.
+            Motion transfer runs on the local MODIFY engine by default
+            (character tracking + 720p MP4). Optional Higgsfield cloud
+            generation still requires HF_CREDENTIALS. Results depend on the
+            source performance—not every gesture or facial detail can be
+            reproduced exactly.
           </p>
         </div>
         <div className="modal-actions">
