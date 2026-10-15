@@ -504,7 +504,7 @@ export async function googleCallback(req: Request) {
     ]);
     await mergeGuest(req, user.id);
   }
-  const headers = new Headers({ Location: "/" });
+  const headers = new Headers({ Location: "/create" });
   headers.append("Set-Cookie", await createSession(user!.id, req));
   headers.append(
     "Set-Cookie",

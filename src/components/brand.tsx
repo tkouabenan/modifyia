@@ -3,13 +3,15 @@ import { cn } from "@/lib/utils";
 export function Brand({
   compact = false,
   className,
+  href = "/",
 }: {
   compact?: boolean;
   className?: string;
+  href?: string;
 }) {
   return (
     <Link
-      href="/"
+      href={href}
       className={cn("brand", className)}
       aria-label="MODIFY AI home"
     >

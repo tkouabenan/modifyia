@@ -2,15 +2,22 @@
 
 An AI character and motion-transfer studio built with Next.js, React, TypeScript, PostgreSQL/SQLite, private media storage, and FFmpeg.
 
-> **Work in progress — not production-ready.** This branch contains the initial studio interface and backend implementation. Visual styling, secondary pages, broader automated coverage, and security/operational validation are unfinished. A targeted regression suite now covers draft validation, credit reservations/refunds, and worker queue behavior. Navigation currently references pages that have not been implemented. External integrations have not been verified using live credentials.
+> **Work in progress — not production-ready.** Visual QA, live-credential verification, and broader automated coverage remain outstanding. A targeted regression suite covers draft validation, credit reservations/refunds, and worker queue behavior. External integrations have not been verified using live credentials.
+
+## Product surfaces
+
+- Marketing landing at `/` (and `/discover`) with pricing, FAQ, and conversion CTAs.
+- Authentication pages: `/login`, `/signup`, `/forgot-password`, `/reset-password`, `/verify-email`.
+- Motion studio at `/create` plus overview, projects, history, characters, queue, billing, settings, help, legal, and admin consoles.
+- Dark-mode design system (electric violet / neon cyan on midnight black) applied across marketing, auth, and workspace.
 
 ## Implemented foundations
 
 - Next.js App Router studio with video/image uploads, trimming controls, prompt presets, reference selection, and preview/comparison components.
 - Server-side file inspection, image normalization/cropping, H.264 source normalization, and a 720p H.264/AAC MP4 export pipeline.
 - PostgreSQL support and a local SQLite development database with parameterized queries and transactional credit accounting.
-- Email/password authentication endpoints, opaque server-side sessions, verification/reset tokens, and a Google OAuth integration.
-- User-scoped project, character, media, notification, billing, and administrator API handlers.
+- Email/password authentication endpoints and pages, opaque server-side sessions, verification/reset tokens, and a Google OAuth integration.
+- User-scoped project, character, media, notification, billing, and administrator API handlers with matching UI.
 - A persistent database-backed generation queue with worker leases, provider polling, stable submission idempotency keys, credit reservations, and refunds.
 - Official Higgsfield TypeScript SDK submission adapter for `higgsfield/genjutsu/motion-transfer/v1.0`, with explicit status/cancellation handling.
 - Local private media storage and an S3-compatible storage implementation.
@@ -38,7 +45,7 @@ npm run worker
 
 The development server binds to `0.0.0.0:3000`. With the default configuration, local data lives under ignored `data/` paths. The worker loads `.env.local` directly.
 
-Without external credentials, the application can create an isolated preview workspace and exercise local media/project APIs. Real video generation, payments, Google sign-in, and email delivery need the services below. The authentication _API_ exists, but the login, registration, reset, and verification _pages_ remain to be built.
+Without external credentials, the application can create an isolated preview workspace and exercise local media/project APIs. Real video generation, payments, Google sign-in, and email delivery need the services below.
 
 ## External configuration
 
@@ -84,7 +91,7 @@ The code handles subscription events and paid invoices, with webhook/event and i
 
 ### Administrator provisioning
 
-After registering the intended account, set `ADMIN_EMAIL` and run `npm run db:setup` to assign the administrator role. Administrator APIs exist; an administrator UI remains to be built.
+After registering the intended account, set `ADMIN_EMAIL` and run `npm run db:setup` to assign the administrator role. The operations UI is at `/admin`.
 
 ## Validation status
 
@@ -98,7 +105,7 @@ After registering the intended account, set `ADMIN_EMAIL` and run `npm run db:se
 
 ## Before release
 
-- Complete styling, responsive/accessibility review, and all secondary routes (landing, authentication, overview, projects/history, characters, queue, billing, settings, help/legal, administration).
+- Complete responsive/accessibility review of the new marketing, auth, and workspace surfaces.
 - Extend regression coverage with browser tests, real upload decoding, PostgreSQL concurrency, webhook ordering, token/OAuth lifecycles, and completed-video downloads.
 - Audit worker leases, timeouts/retries, subscription lifecycle accounting, deletion/cleanup, quota enforcement, and upload resource limits.
 - Add reviewed migrations and deployment-specific database/storage access policies.
