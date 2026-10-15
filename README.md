@@ -54,7 +54,7 @@ The development server binds to `0.0.0.0:3000`. With the default configuration, 
 
 Sign in at `/login`, then open `/create` to generate.
 
-Without external credentials, local motion transfer, uploads, projects, and 720p export work. Payments, Google sign-in, and email delivery still need the services below.
+Without external credentials, the application can create an isolated preview workspace and exercise local media/project APIs. Real video generation, payments, Google sign-in, and email delivery need the services below.
 
 ## External configuration
 

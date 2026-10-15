@@ -123,7 +123,7 @@ export function Studio() {
         title="Project not found"
         description="This project is not available in your workspace."
         action={
-          <Link className="btn btn-primary" href="/">
+          <Link className="btn btn-primary" href="/create">
             Back to studio
           </Link>
         }
@@ -330,7 +330,7 @@ function StudioSession({ initialWorkspace }: { initialWorkspace: Workspace }) {
     );
   };
   const newProject = () => {
-    router.push(`/?new=${Date.now()}`);
+    router.push(`/create?new=${Date.now()}`);
     toast.success("A fresh canvas. Let’s make something great.");
   };
   const useConcept = async () => {
